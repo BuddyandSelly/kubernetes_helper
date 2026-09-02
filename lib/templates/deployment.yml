@@ -75,12 +75,32 @@ documents:
                 <% end %>
 
             <% if deployment.cloud_secret_name %>
+            <%
+              # v2 takes each instance as a positional argument with its port as a query
+              # parameter, where v1 took them all in one -instances flag as
+              # "project:region:instance=tcp:3306". Translated here so that cloud_sql_instance
+              # keeps its existing shape in every app's settings.rb and nothing has to change
+              # in lockstep with this template. A comma separated list still works, and an
+              # entry with no =tcp: port is passed through as it is.
+              cloud_sql_instances = deployment.cloud_sql_instance.to_s.split(',').map do |entry|
+                name, port = entry.strip.split('=tcp:')
+                port.to_s.empty? ? name : "#{name}?port=#{port}"
+              end
+            %>
             - &cloudsql_container
-              image: gcr.io/cloudsql-docker/gce-proxy:1.09 # Cloud sql proxy
+              # The v1 proxy (gcr.io/cloudsql-docker/gce-proxy) checked the server certificate
+              # by matching its CN against the literal "project:instance" string. Cloud SQL
+              # serves DNS name certificates now (<n>-<uuid>.<region>.sql.goog), so that check
+              # cannot pass any more and every v1 proxy fails the TLS handshake with
+              #   x509: certificate is valid for ...sql.goog, not project:instance
+              # which reaches the app as "Lost connection to server at 'handshake: reading
+              # initial communication packet'". The v1 image repository is frozen as well: its
+              # only remaining tags are no-new-use-public-image-*.
+              image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.25.4
               name: cloudsql-proxy
-              command: ["/cloud_sql_proxy", "--dir=/cloudsql",
-                        "-instances=<%=deployment.cloud_sql_instance%>",
-                        "-credential_file=/secrets/gcloud/credentials.json"]
+              # args, not command: v2 ships its own entrypoint.
+              args: ["--credentials-file=/secrets/gcloud/credentials.json",
+                     <%= cloud_sql_instances.map { |instance| "\"#{instance}\"" }.join(",\n                     ") %>]
               env: []
               volumeMounts:
                 - *cloud_credentials_volume
