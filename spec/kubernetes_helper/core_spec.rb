@@ -174,4 +174,46 @@ RSpec.describe KubernetesHelper::Core do
       inst.run_script(script_path)
     end
   end
+
+  describe '#parse_documents' do
+    # Reached through parse_yml_file in the rest of this file; called directly here
+    # so the shapes a stream can take are each covered on their own.
+    def parse(yml_data)
+      inst.send(:parse_documents, yml_data)
+    end
+
+    it 'unwraps a documents list into the documents it holds' do
+      expect(parse([{ 'documents' => [{ 'a' => 1 }, { 'b' => 2 }] }]))
+        .to eq [{ 'a' => 1 }, { 'b' => 2 }]
+    end
+
+    it 'keeps a bare document as it is' do
+      expect(parse([{ 'kind' => 'Deployment' }])).to eq [{ 'kind' => 'Deployment' }]
+    end
+
+    it 'drops the empty documents a trailing --- leaves in the stream' do
+      expect(parse([nil, { 'kind' => 'Service' }, nil])).to eq [{ 'kind' => 'Service' }]
+    end
+
+    # Array(hash) splits a hash into key/value pairs rather than wrapping it, so the
+    # Array() call tolerates nil but not a lone document. Nothing hits this in
+    # practice: yml_data always comes from YAML.load_stream, which returns an array.
+    it 'cannot take a lone document that did not arrive in an array' do
+      expect { parse({ 'kind' => 'Ingress' }) }.to raise_error(TypeError)
+    end
+  end
+
+  describe '#replace_config_variables' do
+    it 'exposes a hash setting as an object the template can call methods on' do
+      inst.config_values[:sample] = { value1: 'from a hash' }
+
+      expect(inst.replace_config_variables('<%= sample.value1 %>')).to eq 'from a hash'
+    end
+
+    it 'passes a setting that is not a hash straight through' do
+      inst.config_values[:plain] = 'a string'
+
+      expect(inst.replace_config_variables('<%= plain %>')).to eq 'a string'
+    end
+  end
 end

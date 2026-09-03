@@ -1,8 +1,6 @@
-source "https://rubygems.org"
+# frozen_string_literal: true
 
-# Specify your gem's dependencies in kubernetes_helper.gemspec
+source 'https://rubygems.org'
+
+# Every dependency, development ones included, is declared in the gemspec.
 gemspec
-
-gem 'byebug'
-gem 'rspec'
-gem 'rubocop'

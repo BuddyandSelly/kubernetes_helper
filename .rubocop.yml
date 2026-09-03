@@ -6,8 +6,7 @@ AllCops:
     - 'spec/**/*'
     - 'spec/spec_helper.rb'
     - 'Gemfile'
-    - 'buddy_translatable.gemspec'
-    - 'exe/kubernetes_helper'
+    # Sample content copied into applications, not code this gem runs.
     - 'lib/templates/**/*'
 
 Style/BlockComments:
