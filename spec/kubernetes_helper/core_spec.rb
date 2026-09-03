@@ -76,6 +76,65 @@ RSpec.describe KubernetesHelper::Core do
       end
     end
 
+    describe 'when building the cloud sql proxy container' do
+      # The v1 proxy is unusable: it checks the server certificate by matching its CN
+      # against the literal "project:instance" string, and Cloud SQL serves DNS name
+      # certificates now, so it fails every TLS handshake. These specs pin the v2
+      # invocation, which differs in image, in entrypoint and in how the instance and
+      # its port are passed.
+      # export_documents writes one document at a time, so collect them all.
+      def rendered
+        content = +''
+        allow(mock_output_file).to receive(:write) { |text| content << text }
+        inst.parse_yml_file(input_yml, output_yml)
+        content
+      end
+
+      it 'runs the v2 proxy' do
+        expect(rendered).to include('image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.25.4')
+      end
+
+      it 'passes the flags through args, because v2 has its own entrypoint' do
+        content = rendered
+        expect(content).to include('--credentials-file=/secrets/gcloud/credentials.json')
+        expect(content).not_to include('/cloud_sql_proxy')
+        expect(content).not_to include('-instances=')
+        expect(content).not_to include('-credential_file=')
+      end
+
+      it 'turns the =tcp: port of an instance into the v2 port query parameter' do
+        inst.config_values[:deployment][:cloud_sql_instance] = 'proj:europe-west4:db=tcp:3306'
+
+        expect(rendered).to include('- proj:europe-west4:db?port=3306')
+      end
+
+      it 'keeps accepting a comma separated list of instances' do
+        inst.config_values[:deployment][:cloud_sql_instance] =
+          'proj:europe-west4:mysql=tcp:3306, proj:europe-west3:pg=tcp:5432'
+        content = rendered
+
+        expect(content).to include('- proj:europe-west4:mysql?port=3306')
+        expect(content).to include('- proj:europe-west3:pg?port=5432')
+      end
+
+      it 'leaves an instance that names no port alone' do
+        inst.config_values[:deployment][:cloud_sql_instance] = 'proj:europe-west4:db'
+        content = rendered
+
+        expect(content).to include('- proj:europe-west4:db')
+        expect(content).not_to include('?port=')
+      end
+
+      it 'gives the job pod the same proxy container' do
+        inst.config_values[:deployment][:job_apps] = [{ name: 'pod1', command: 'cmd 1' }]
+
+        # The job pod picks the container up through a YAML anchor, so one image bump
+        # covers every pod kind. The anchor is resolved by the time the file is written,
+        # hence counting the rendered container rather than looking for the reference.
+        expect(rendered.scan('image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.25.4').size).to eq 2
+      end
+    end
+
     describe 'when building job pods' do
       it 'includes pod settings for all job pods', skip_after: true do
         settings = inst.config_values
@@ -113,6 +172,48 @@ RSpec.describe KubernetesHelper::Core do
       allow(File).to receive(:read).with(script_path).and_return('echo <%= sample.value1 %>')
       expect(File).to receive(:write).with(/tmp_script.sh$/, 'echo sample value1')
       inst.run_script(script_path)
+    end
+  end
+
+  describe '#parse_documents' do
+    # Reached through parse_yml_file in the rest of this file; called directly here
+    # so the shapes a stream can take are each covered on their own.
+    def parse(yml_data)
+      inst.send(:parse_documents, yml_data)
+    end
+
+    it 'unwraps a documents list into the documents it holds' do
+      expect(parse([{ 'documents' => [{ 'a' => 1 }, { 'b' => 2 }] }]))
+        .to eq [{ 'a' => 1 }, { 'b' => 2 }]
+    end
+
+    it 'keeps a bare document as it is' do
+      expect(parse([{ 'kind' => 'Deployment' }])).to eq [{ 'kind' => 'Deployment' }]
+    end
+
+    it 'drops the empty documents a trailing --- leaves in the stream' do
+      expect(parse([nil, { 'kind' => 'Service' }, nil])).to eq [{ 'kind' => 'Service' }]
+    end
+
+    # Array(hash) splits a hash into key/value pairs rather than wrapping it, so the
+    # Array() call tolerates nil but not a lone document. Nothing hits this in
+    # practice: yml_data always comes from YAML.load_stream, which returns an array.
+    it 'cannot take a lone document that did not arrive in an array' do
+      expect { parse({ 'kind' => 'Ingress' }) }.to raise_error(TypeError)
+    end
+  end
+
+  describe '#replace_config_variables' do
+    it 'exposes a hash setting as an object the template can call methods on' do
+      inst.config_values[:sample] = { value1: 'from a hash' }
+
+      expect(inst.replace_config_variables('<%= sample.value1 %>')).to eq 'from a hash'
+    end
+
+    it 'passes a setting that is not a hash straight through' do
+      inst.config_values[:plain] = 'a string'
+
+      expect(inst.replace_config_variables('<%= plain %>')).to eq 'a string'
     end
   end
 end

@@ -1,16 +1,156 @@
 name: App tests
+
+# Self contained on purpose. This used to call
+# ReverseRetail/reusable-ci-cd-actions/.github/workflows/tests.yml@main, a
+# reusable workflow in a different organisation to this repository, which GitHub
+# could not resolve: every run failed immediately having started no jobs at all.
+# A gem with no database needs nothing that a shared workflow provides.
 on:
   push:
     branches:
       - main
       - master
   pull_request:
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  app-tests:
-    uses: ReverseRetail/reusable-ci-cd-actions/.github/workflows/tests.yml@main
-    with:
-      prepare_db_cmd: null
-      copy_env: false
-      run_rubocop: true
-      rspec_cmd: 'bundle exec rspec'
+  rspec:
+    name: RSpec
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      # The suite fails when line or branch coverage drops below 100%,
+      # see spec/spec_helper.rb.
+      - name: Run the suite
+        id: suite
+        continue-on-error: true
+        run: bundle exec rspec
+
+      - name: Read coverage
+        id: coverage
+        if: always()
+        run: |
+          ruby -rjson -e '
+            path = "coverage/.last_run.json"
+            abort "#{path} is missing: the suite did not get far enough to measure coverage" unless File.exist?(path)
+            result = JSON.parse(File.read(path))["result"]
+            File.open(ENV["GITHUB_OUTPUT"], "a") do |out|
+              out.puts "line=#{result["line"]}"
+              out.puts "branch=#{result["branch"]}"
+            end
+          '
+
+      - name: Add coverage to the job summary
+        if: always() && steps.coverage.outcome == 'success'
+        env:
+          LINE: ${{ steps.coverage.outputs.line }}
+          BRANCH: ${{ steps.coverage.outputs.branch }}
+        run: |
+          {
+            echo "## Coverage"
+            echo
+            echo "| Metric | Coverage |"
+            echo "| --- | --- |"
+            echo "| Line | ${LINE}% |"
+            echo "| Branch | ${BRANCH}% |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the coverage report
+        if: always() && steps.coverage.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+          retention-days: 14
+
+      # Fork pull requests only get a read only token, so a missing comment
+      # must not fail the build.
+      - name: Comment coverage on the pull request
+        if: always() && github.event_name == 'pull_request' && steps.coverage.outcome == 'success'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          LINE: ${{ steps.coverage.outputs.line }}
+          BRANCH: ${{ steps.coverage.outputs.branch }}
+        with:
+          script: |
+            const marker = '<!-- simplecov-coverage-report -->';
+            // context.sha is the ephemeral merge commit on pull_request events.
+            const headSha = context.payload.pull_request.head.sha;
+            const mark = (value) => (Number(value) >= 100 ? '✅' : '❌');
+            const body = [
+              marker,
+              '## Coverage',
+              '',
+              '| Metric | Coverage | 100% required |',
+              '| --- | --- | --- |',
+              `| Line | ${process.env.LINE}% | ${mark(process.env.LINE)} |`,
+              `| Branch | ${process.env.BRANCH}% | ${mark(process.env.BRANCH)} |`,
+              '',
+              `Measured by SimpleCov on \`${headSha.substring(0, 7)}\`. `
+                + 'The suite fails below 100% on either count, so a ❌ above is a red '
+                + 'build. The full HTML report is attached to this run as the '
+                + '`coverage-report` artifact.'
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100
+            });
+            const previous = comments.find((comment) => comment.body.includes(marker));
+
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previous.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
+
+      # continue-on-error above let the comment go out first; the suite's own
+      # result still decides whether this job passes.
+      - name: Fail when the suite failed
+        if: always() && steps.suite.outcome == 'failure'
+        run: |
+          echo "the suite failed, see the 'Run the suite' step" >&2
+          exit 1
+
+  rubocop:
+    name: RuboCop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+      - name: Run RuboCop
+        run: bundle exec rubocop

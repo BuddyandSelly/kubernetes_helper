@@ -1,7 +1,13 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'kubernetes_helper/core'
+require 'kubernetes_helper/cli'
+# A single process takes exactly one side of this: the suite loads rails first, so
+# the railtie is required and covered, and the plain-ruby arm cannot also run here.
+# simplecov:disable branch
 require 'kubernetes_helper/railtie' if defined?(Rails)
+# simplecov:enable
 
 module KubernetesHelper
   class Error < StandardError; end
