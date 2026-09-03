@@ -1,6 +1,17 @@
 # This is the configuration used to check the rubocop source code.
 
+# Exclude is an array, and arrays replace rather than merge, so without this the
+# list below would drop rubocop's own defaults — vendor/**/* among them. CI installs
+# the bundle into vendor/bundle inside the workspace, and the gems in there ship
+# .rubocop.yml files of their own declaring plugins this project does not have, so
+# rubocop died with "cannot load such file -- rubocop-rubycw" before inspecting
+# anything.
+inherit_mode:
+  merge:
+    - Exclude
+
 AllCops:
+  TargetRubyVersion: 4.0
   Exclude:
     - 'bin/**/*'
     - 'spec/**/*'

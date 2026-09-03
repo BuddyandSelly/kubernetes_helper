@@ -14,7 +14,7 @@ Gem::Specification.new do |spec|
                        'with templates for deployments, jobs, cronjobs, services, ingresses and secrets.'
   spec.homepage      = 'https://github.com/ReverseRetail/kubernetes_helper'
   spec.license       = 'MIT'
-  spec.required_ruby_version = '>= 3.2'
+  spec.required_ruby_version = '>= 4.0.6'
 
   # spec.metadata["allowed_push_host"] = "TODO: Set to 'http://mygemserver.com'"
 
