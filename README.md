@@ -113,7 +113,8 @@ Sample:
 - `cloud.name` (String, optional): Cloud service name: `gcloud | digital_ocean`. Default `gcloud`.  
 
 ### Application CD (continuous deployment)
-- `continuous_deployment.image_name` (String): Partial docker image url. Sample: `gcr.io/my-account/my_app_name`
+- `continuous_deployment.image_name` (String): Partial docker image url. Sample: `europe-west4-docker.pkg.dev/my-project/my-repo/my_app_name` (legacy `gcr.io/my-account/my_app_name` also works). The first segment is taken as the registry host to authenticate docker against.
+- `continuous_deployment.container_registry` (String, optional): `GAR` selects the Google connector. It is also selected automatically when `image_name` points at `*-docker.pkg.dev` or a `gcr.io` host, so it only needs setting for a Google registry under some other hostname.
 - `continuous_deployment.image_tag` (String, default 'latest'): Image tag to be used for this application
 - `continuous_deployment.project_name`: Cloud project name. Sample: `my-project-name`
 - `continuous_deployment.cluster_name`: Cluster cluster name. Sample: `my-cluster-name`
@@ -123,6 +124,8 @@ Sample:
   Simple docker image: `docker build -f Dockerfile -t $DEPLOY_NAME .`    
   Docker image with target: `docker build --target production -f Dockerfile -t $DEPLOY_NAME .`        
 - `continuous_deployment.update_deployment` (Boolean, default: false): If true permits to re-generate and update the k8s deployment(s) before applying the new version (new docker image)
+
+On the Google path the image is **not** built or pushed here: CI is expected to have pushed `image_name:<commit sha>` to Artifact Registry before `run_deployment 'cd.sh'` runs, and the deploy only points the cluster at that tag. `docker_cmd` / `docker_build_cmd` therefore apply to the DigitalOcean path only. Whatever pushes the image has to use the same `image_name` and the commit sha as the tag, or `kubectl set image` will name a tag that was never pushed.
 
 ### Gem templating partials
 - `_container_extra_settings.yml` Partial template to add custom container settings. Receives `pod` as local variable (`web` | `job` | `cloudsql` | `logs`) and `pod_name`. Sample:

@@ -19,8 +19,16 @@ LATEST_NAME="${IMAGE_NAME}:<%= continuous_deployment.image_tag || 'latest' %>"
 DOCKER_ARGS=" -t $DEPLOY_NAME --build-arg DEPLOY_VERSION=${DEPLOY_VERSION} --build-arg DEPLOY_ENV=${DEPLOY_ENV}"
 DOCKER_BUILD_CMD="<%= continuous_deployment.docker_cmd || "docker #{continuous_deployment.docker_build_cmd || 'build -f Dockerfile'} . $DOCKER_ARGS" %>"
 
-#<%= include_template "_cd_google.sh" if continuous_deployment.image_name.include?('gcr.io/') %>
-<%= include_template "_cd_google.sh" if continuous_deployment.container_registry == 'GAR' %>
+<%
+  # Any Google-hosted image needs the connector, whether it lives in Artifact Registry
+  # (<region>-docker.pkg.dev) or on one of the legacy gcr.io hosts. Keying the include on
+  # container_registry alone left every app that had not added that setting yet with no connector
+  # at all, which means no cluster credentials and a deploy that cannot reach kubectl.
+  registry_host = continuous_deployment.image_name.to_s.split('/').first.to_s
+  google_registry = continuous_deployment.container_registry == 'GAR' ||
+                    registry_host.end_with?('gcr.io', '-docker.pkg.dev')
+%>
+<%= include_template "_cd_google.sh" if google_registry %>
 <%= include_template "_cd_digital.sh" if continuous_deployment.image_name.include?('digitalocean.com/') %>
 
 <% unless ENV['SSH_PRIVATE_KEY'] %>
