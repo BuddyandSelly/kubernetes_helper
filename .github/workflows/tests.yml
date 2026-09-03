@@ -85,7 +85,7 @@ jobs:
       - name: Comment coverage on the pull request
         if: always() && github.event_name == 'pull_request' && steps.coverage.outcome == 'success'
         continue-on-error: true
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           LINE: ${{ steps.coverage.outputs.line }}
           BRANCH: ${{ steps.coverage.outputs.branch }}
