@@ -1,10 +1,13 @@
 name: App tests
 
 # Self contained on purpose. This used to call
-# ReverseRetail/reusable-ci-cd-actions/.github/workflows/tests.yml@main, a
-# reusable workflow in a different organisation to this repository, which GitHub
-# could not resolve: every run failed immediately having started no jobs at all.
-# A gem with no database needs nothing that a shared workflow provides.
+# ReverseRetail/reusable-ci-cd-actions/.github/workflows/tests.yml@main, and every
+# run failed the moment it started, with no jobs at all. ReverseRetail is this
+# organisation's former name on GitHub, and Actions does not follow the rename
+# redirect for a `uses:` reference the way git and the API do, so the reference
+# simply did not resolve. A gem with no database needs nothing that a shared
+# workflow provides, so this stays self contained rather than pointing at the
+# renamed one.
 on:
   push:
     branches:
