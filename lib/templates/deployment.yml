@@ -122,7 +122,7 @@ documents:
 
             <%= include_template "_custom_containers.yml", { pod: 'web' } %>
 
-          terminationGracePeriodSeconds: 120
+          terminationGracePeriodSeconds: <%= deployment.termination_grace_period_seconds || 120 %>
           volumes:
             <%= include_template "_volumes.yml", { pod: 'web' } %>
 

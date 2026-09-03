@@ -83,17 +83,29 @@ module KubernetesHelper
     end
   end
 
-  def self.job_apps_from_old_settings(settings)
-    return [] unless settings[:deployment][:job_name]
+  # The older shape put one job app's settings directly on deployment as job_* keys. This
+  # is the whole of that mapping, deliberately as a table rather than as a list of
+  # assignments: rolling_update and min_ready_seconds were reachable through job_apps and
+  # missing from here, so an application on the older keys could set them and nothing
+  # happened at all. A table makes the next omission visible.
+  #
+  # The cron settings are absent on purpose. schedule, suspend and concurrency_policy only
+  # do anything alongside kind: 'CronJob', which this shape cannot express, so an
+  # application wanting a cronjob has to use job_apps.
+  OLD_JOB_KEYS = {
+    name: :job_name,
+    command: :job_command,
+    services: :job_services,
+    resources: :job_resources,
+    sidekiq_alive_gem: :job_sidekiq_alive_gem,
+    rolling_update: :job_rolling_update,
+    min_ready_seconds: :job_min_ready_seconds
+  }.freeze
 
-    [
-      {
-        name: settings[:deployment][:job_name],
-        command: settings[:deployment][:job_command],
-        services: settings[:deployment][:job_services],
-        resources: settings[:deployment][:job_resources],
-        sidekiq_alive_gem: settings[:deployment][:job_sidekiq_alive_gem]
-      }
-    ]
+  def self.job_apps_from_old_settings(settings)
+    deployment = settings[:deployment]
+    return [] unless deployment[:job_name]
+
+    [OLD_JOB_KEYS.to_h { |key, old_key| [key, deployment[old_key]] }]
   end
 end

@@ -1,16 +1,44 @@
               ports:
                 - containerPort: &sidekiq_alive_port 7433
+              # A startup probe is what waits for a slow boot, so liveness and readiness no
+              # longer have to. Kubernetes runs neither of those until this one has
+              # succeeded, and then the pod goes Ready as soon as the port answers instead
+              # of at a fixed delay.
+              #
+              # This is more forgiving than what it replaces, not less. It used to be
+              # `initialDelaySeconds: 80` on liveness, which meant two things at once: a
+              # container that booted in 30 seconds still sat idle for another 50, and one
+              # that needed more than 80 + 3x10 seconds was killed mid-boot. Here a slow
+              # start gets 36 attempts five seconds apart, three minutes, and a quick one
+              # is Ready in about five.
+              startupProbe:
+                httpGet:
+                  path: /
+                  port: *sidekiq_alive_port
+                periodSeconds: 5
+                failureThreshold: 36
+                timeoutSeconds: 5
               livenessProbe: &sidekiq_liveness
                 httpGet:
                   path: /
                   port: *sidekiq_alive_port
-                initialDelaySeconds: 80 # app specific. Time your sidekiq takes to start processing.
+                periodSeconds: 10
                 timeoutSeconds: 5 # can be much less
               readinessProbe: *sidekiq_liveness
               lifecycle:
                 preStop:
                   exec:
-                    # SIGTERM triggers a quick exit; gracefully terminate instead
+                    # SIGTERM triggers a quick exit; gracefully terminate instead.
+                    #
+                    # Worth knowing what this can and cannot do. It needs ps, which the
+                    # slim ruby images do not ship, and where ps is missing the
+                    # substitution is empty and kill exits non-zero as a FailedPreStopHook.
+                    # Even where it works it only signals sidekiq: Kubernetes sends SIGTERM
+                    # to PID 1 alone, and if PID 1 is a shell sitting in a foreground
+                    # command it will not run a trap until that command returns, so the
+                    # container waits out terminationGracePeriodSeconds and is killed. An
+                    # entrypoint that backgrounds its processes and blocks on `wait` handles
+                    # SIGTERM itself and does not need this hook at all.
                     command: [
                         "/bin/bash",
                         "-c",
