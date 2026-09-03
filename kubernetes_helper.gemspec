@@ -12,9 +12,14 @@ Gem::Specification.new do |spec|
   spec.summary       = 'Kubernetes helper to manage deployment files'
   spec.description   = 'Generates and applies Kubernetes manifests from a single settings file, ' \
                        'with templates for deployments, jobs, cronjobs, services, ingresses and secrets.'
-  spec.homepage      = 'https://github.com/ReverseRetail/kubernetes_helper'
+  spec.homepage      = 'https://github.com/BuddyandSelly/kubernetes_helper'
   spec.license       = 'MIT'
-  spec.required_ruby_version = '>= 4.0.6'
+  # Deliberately not '>= 4.0.6', which is what the development toolchain runs.
+  # The shared cd_new.yml installs this gem with "sudo gem specific_install" and has no
+  # setup-ruby step, so it installs under the runner image's system ruby. A 4.0.6 floor
+  # makes that step fail outright — "requires Ruby version >= 4.0.6" — and every app's
+  # deployment with it. Raise this only together with a ruby setup step in that workflow.
+  spec.required_ruby_version = '>= 3.2'
 
   # spec.metadata["allowed_push_host"] = "TODO: Set to 'http://mygemserver.com'"
 

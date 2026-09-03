@@ -11,7 +11,7 @@ inherit_mode:
     - Exclude
 
 AllCops:
-  TargetRubyVersion: 4.0
+  TargetRubyVersion: 3.2 # the gemspec floor, so nothing 3.2 cannot parse gets in
   Exclude:
     - 'bin/**/*'
     - 'spec/**/*'
