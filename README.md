@@ -47,6 +47,7 @@ Configuration and customization can be done for multiple environments and at any
 
 - `deployment.cloudsql_resources` (Hash, optional): Configure depending on the app requirements. Default: `{ cpu: { max: '300m', min: '100m' }, mem: { max: '500Mi', min: '200Mi' } }`
 - `deployment.logs_resources` (Hash, optional): Configure depending on the app requirements. Default: `{ cpu: { max: '200m', min: '50m' }, mem: { max: '200Mi', min: '50Mi' } }`
+- `deployment.termination_grace_period_seconds` (Integer, default 120): How long Kubernetes waits after SIGTERM before it kills the pod, for the web and job pods alike. The default is only worth its length if the container actually shuts down on SIGTERM; note that Kubernetes signals PID 1 alone, so an entrypoint whose PID 1 is a shell blocked in a foreground command never sees it and waits out the whole period on every deploy.
 
 ### Application deployment.yml for jobs or services without internet interaction (Optional)
 Ideal to run sidekiq or similar jobs as a service without interacting via HTTP.
@@ -56,6 +57,11 @@ Ideal to run sidekiq or similar jobs as a service without interacting via HTTP.
 - `deployment.job_apps[].services` (Array, Optional): List of linux service names that are required for a healthy job container. Sample: `['sidekiq', 'cron']`. Note: This will be ignored if `sidekiq_alive_gem` was defined.     
 - `deployment.job_apps[].resources` (Hash, optional): Configure depending on the job app requirements. Sample: `{ cpu: { max: '1', min: '500m' }, mem: { max: '1Gi', min: '500Mi' } }`
 - `deployment.job_apps[].rolling_update` (Boolean, default false): Uses `rollingUpdate` strategy instead of `recreate` (https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#rolling-update-deployment) 
+- `deployment.job_apps[].min_ready_seconds` (Integer, default 10): Seconds a new job pod must stay ready before the rollout counts it as available. A job pod serves no traffic, so `0` is usually fine and takes ten seconds off every deploy.
+
+An application using the older `job_name` / `job_command` / `job_services` / `job_resources` / `job_sidekiq_alive_gem` / `job_rolling_update` / `job_min_ready_seconds` keys directly on `deployment` gets a single `job_apps` entry built from them. Anything outside that list is ignored on that path, the cron settings included, since those need `kind: 'CronJob'` which the older shape cannot express.
+
+When `sidekiq_alive_gem` is set the job container gets a `startupProbe` on port 7433 rather than a liveness probe with a fixed `initialDelaySeconds`. Kubernetes runs neither liveness nor readiness until the startup probe passes, so a pod is ready as soon as the port answers, and a slow boot has three minutes rather than being killed at 110 seconds.
 Sample:    
   ```ruby
   {

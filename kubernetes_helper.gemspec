@@ -23,9 +23,8 @@ Gem::Specification.new do |spec|
 
   # spec.metadata["allowed_push_host"] = "TODO: Set to 'http://mygemserver.com'"
 
-  spec.metadata['homepage_uri'] = spec.homepage
-  spec.metadata['source_code_uri'] = 'https://github.com/ReverseRetail/kubernetes_helper'
-  spec.metadata['changelog_uri'] = 'https://github.com/ReverseRetail/kubernetes_helper'
+  spec.metadata['source_code_uri'] = 'https://github.com/BuddyandSelly/kubernetes_helper'
+  spec.metadata['changelog_uri'] = 'https://github.com/BuddyandSelly/kubernetes_helper/releases'
 
   spec.files = Dir['{app,config,db,lib,exe}/**/*', 'MIT-LICENSE', 'Rakefile', 'README.md']
 

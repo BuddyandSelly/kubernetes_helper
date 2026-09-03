@@ -26,6 +26,28 @@ RSpec.describe KubernetesHelper do
       expect(res.first).to match(hash_including(name: 'job-name'))
       expect(res.first).to match(hash_including(resources: { test: true }))
     end
+
+    it 'carries rolling_update and min_ready_seconds over from the old settings too' do
+      # Both are reachable through job_apps and neither used to be mapped here, so an
+      # application on the older job_name keys set them and nothing happened.
+      settings = {
+        deployment: {
+          job_name: 'job-name',
+          job_rolling_update: true,
+          job_min_ready_seconds: 0
+        }
+      }
+      res = described_class.job_apps_from_old_settings(settings)
+
+      expect(res.first).to match(hash_including(rolling_update: true, min_ready_seconds: 0))
+    end
+
+    it 'leaves the cron settings out, which need a kind the old shape cannot express' do
+      settings = { deployment: { job_name: 'job-name', job_schedule: '* * * * *' } }
+
+      expect(described_class.job_apps_from_old_settings(settings).first.keys)
+        .not_to include(:schedule, :kind)
+    end
   end
 
   describe '.settings' do

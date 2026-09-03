@@ -16,7 +16,7 @@
         <% else %>
         type: Recreate
         <% end %>
-      minReadySeconds: 10
+      minReadySeconds: <%= locals[:job_app][:min_ready_seconds] || 10 %>
       template:
         metadata:
           labels:
