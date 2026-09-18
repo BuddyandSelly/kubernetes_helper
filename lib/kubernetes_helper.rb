@@ -20,7 +20,7 @@ module KubernetesHelper
 
   # @param env_name (String)
   # @return [Hash]
-  def self.load_settings # rubocop:disable Metrics/MethodLength:
+  def self.load_settings # rubocop:disable Metrics/MethodLength
     config_file = File.join(settings_path, 'settings.rb')
     load config_file
 
