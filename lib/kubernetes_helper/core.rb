@@ -8,7 +8,7 @@ require 'erb'
 
 module KubernetesHelper
   class ErbBinding < OpenStruct
-    def get_binding # rubocop:disable Naming/AccessorMethodName:
+    def get_binding # rubocop:disable Naming/AccessorMethodName
       binding
     end
 
